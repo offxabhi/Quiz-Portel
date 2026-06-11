@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Quiz Portal - Low-Level Proctoring</title>
+    <meta name="description" content="A secure online quiz system featuring low-level browser-based proctoring including tab switching tracking, copy-paste blocking, and key shortcuts intercept.">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .is-hidden {
+            display: none;
+        }
+
+        .font-bold {
+            font-weight: bold;
+        }
+
+        .btn-logout {
+            padding: 0.4rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        .is-display-none {
+            display: none;
+        }
+        /* moved inline styles from auth submit button into CSS to satisfy lint rules */
+        .btn-auth-submit {
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .dashboard-hero {
+            margin-bottom: 2rem;
+        }
+
+        .student-dashboard-heading {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .student-search-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .subject-filters-container {
+            margin-bottom: 1.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            padding: 0.35rem;
+            border-radius: var(--radius-md);
+        }
+
+        .available-quizzes-heading {
+            margin-bottom: 1rem;
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+        }
+
+        .student-performance-heading {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .student-proctor-status-box {
+            background: rgba(16, 185, 129, 0.05);
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .student-proctor-status-title {
+            color: var(--success);
+        }
+
+        .student-attempts-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .quiz-progress-fill {
+            width: 6.67%;
+        }
+
+        .quiz-main-panel {
+            padding: 2rem;
+        }
+
+        .quiz-violations-panel {
+            flex-grow: 1;
+        }
+
+        .quiz-submit-button-hidden {
+            display: none;
+        }
+
+        .proctor-panel-heading {
+            font-size: 1.1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .proctor-icon-large {
+            font-size: 1.25rem;
+        }
+
+        .proctor-status-title {
+            color: var(--primary);
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+
+        .proctor-status-dot-right {
+            margin-left: auto;
+        }
+        .no-attempts-cell {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 2rem;
+        }
+
+        .session-warnings-label {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .session-warnings-description {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+        }
+
+        .dashboard-hero-row {
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .dashboard-stats-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .reports-panel {
+            padding: 2rem;
+        }
+
+        .compliance-warning-card {
+            width: 100%;
+        }
+
+        .audit-summary-box {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .audit-summary-text {
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .audit-status-text {
+            font-size: 0.9rem;
+        }
+
+        .audit-timeline-close-wrap {
+            margin-top: 2rem;
+            text-align: right;
+        }
+
+        .create-quiz-form-spacing {
+            margin: 1.5rem 0;
+            border-top: 1px solid var(--border-color);
+            padding-top: 1rem;
+        }
+
+        .questions-list-header {
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .questions-add-btn {
+            padding: 0.35rem 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .questions-builder-spacing {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+        .feedback-subtitle {
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Navigation Header -->
+    <header class="app-header">
+        <div class="header-container">
+            <div class="logo" id="app-logo">
+                <div class="logo-icon">Q</div>
+                <span>Quiz Portal</span>
+            </div>
+            
+            <nav class="nav-user is-hidden" id="nav-user-section">
+                <div class="user-badge">
+                    <span id="nav-user-avatar" class="font-bold">👤</span>
+                    <span id="nav-user-name">Guest</span>
+                    <span id="nav-user-role" class="role">Student</span>
+                </div>
+                <button type="button" class="btn btn-secondary btn-logout" id="btn-logout">
+                    Logout
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <!-- SCREEN 1: AUTHENTICATION (Login / Registration) -->
+        <section id="page-auth" class="page active">
+            <div class="auth-wrapper">
+                <div class="glass-panel auth-card">
+                    <div class="auth-header">
+                        <h2>Assessment Portal</h2>
+                        <p id="auth-subtitle">Sign in to your assessment portal</p>
+                    </div>
+
+                    <div class="role-selector">
+                        <button type="button" class="role-btn active" id="auth-role-student" onclick="setAuthRole('student')">Student</button>
+                        <button type="button" class="role-btn" id="auth-role-instructor" onclick="setAuthRole('instructor')">Instructor</button>
+                    </div>
+
+                    <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+                        <div class="form-group is-display-none" id="group-fullname">
+                            <label for="auth-fullname">Full Name</label>
+                            <input type="text" id="auth-fullname" class="form-control" placeholder="Enter your full name">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="auth-email">Email Address</label>
+                            <input type="email" id="auth-email" class="form-control" placeholder="name@domain.com" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="auth-password">Password</label>
+                            <input type="password" id="auth-password" class="form-control" placeholder="••••••••" required>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-auth-submit" id="btn-auth-submit">
+                            Sign In
+                        </button>
+                    </form>
+
+                    <div class="auth-footer">
+                        <span id="auth-toggle-msg">Don't have an account?</span>
+                        <a href="#" id="auth-toggle-link" onclick="toggleAuthMode()">Sign Up</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SCREEN 2: STUDENT DASHBOARD -->
+        <section id="page-student" class="page">
+            <div class="glass-panel dashboard-hero">
+                <h2 id="student-welcome-heading">Hello, Student!</h2>
+                <p>Welcome back to your dashboard. Make sure you close other tabs and focus solely on the assessment once it begins.</p>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- Active Assessments list -->
+                <div class="dashboard-main">
+                    <h3 class="student-dashboard-heading">
+                        <span>📚</span> Select Subject for Quiz
+                    </h3>
+                    
+                    <!-- Subject selection tabs -->
+                    <div class="form-group student-search-group">
+                        <input type="text" id="quiz-search-bar" class="form-control" placeholder="🔍 Search assessments by title or subject..." oninput="handleQuizSearch(this.value)">
+                    </div>
+
+                    <div class="role-selector subject-filters-container" id="subject-filters-container">
+                        <!-- Dynamically filled by app.js -->
+                    </div>
+
+                    <h3 class="available-quizzes-heading">
+                        Available Quizzes
+                    </h3>
+                    <div class="quiz-list" id="available-quizzes-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+                <!-- Past quiz logs and warnings tracking -->
+                <div class="dashboard-sidebar">
+                    <h3 class="student-performance-heading">
+                        <span>📊</span> Performance Summary
+                    </h3>
+                    <div class="glass-panel panel-padding-1-5">
+                        <div class="proctor-alert-box student-proctor-status-box" id="student-proctor-status-box">
+                            <div class="icon-large">🛡️</div>
+                            <div>
+                                <h4 class="student-proctor-status-title" id="student-proctor-status-title">Proctor Status: Clean</h4>
+                                <p id="student-proctor-status-desc">No compliance logs flagged in your past assessments.</p>
+                            </div>
+                        </div>
+
+                        <h4 class="heading-small">Past Attempts Log</h4>
+                        <div id="student-attempts-container" class="student-attempts-container">
+                            <!-- Dynamically populated -->
+                            <p class="muted-center">No quizzes attempted yet.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SCREEN 3: QUIZ SECURE WORKSPACE -->
+        <section id="page-quiz" class="page">
+            <div class="quiz-screen-layout">
+                
+                <!-- Main Quiz Body -->
+                <div class="glass-panel quiz-main-container quiz-main-panel">
+                    <div class="question-header">
+                        <div>
+                            <span class="badge badge-blue" id="quiz-badge-name">SECURE ENVIRONMENT</span>
+                            <h2 id="quiz-question-title" class="question-title">Database Quiz</h2>
+                        </div>
+                        <div class="timer-block">
+                            <div class="timer-label">Time Remaining</div>
+                            <div id="quiz-timer" class="timer-value">15:00</div>
+                        </div>
+                    </div>
+
+                    <div id="quiz-question-pane">
+                        <div class="quiz-progress">
+                            <span id="question-progress-text">Question 1 of 15</span>
+                            <div class="progress-track">
+                                <div id="question-progress-bar" class="progress-fill quiz-progress-fill"></div>
+                            </div>
+                        </div>
+
+                        <div class="question-text" id="current-question-text">
+                            Loading question text...
+                        </div>
+
+                        <div class="options-list" id="current-options-container">
+                            <!-- Options list dynamically loaded -->
+                        </div>
+                    </div>
+
+                    <div class="quiz-controls">
+                        <button type="button" class="btn btn-secondary" id="btn-prev-question" onclick="navigateQuestion(-1)">← Previous</button>
+                        <button type="button" class="btn btn-secondary" id="btn-next-question" onclick="navigateQuestion(1)">Next →</button>
+                        <button type="button" class="btn btn-danger quiz-submit-button-hidden" id="btn-submit-exam" onclick="confirmSubmitExam()">Submit Assessment</button>
+                    </div>
+                </div>
+
+                <!-- AI Monitoring Side Control Panel -->
+                <aside class="proctor-sidebar">
+                    <div class="glass-panel panel-padding-1-25">
+                        <h3 class="proctor-panel-heading">
+                            <span>🛡️</span> Security Monitor
+                        </h3>
+                        
+                        <!-- Event-based proctoring widget -->
+                        <div class="proctor-alert-box proctor-alert-custom">
+                            <div class="proctor-icon-large">🔒</div>
+                            <div>
+                                <h4 class="proctor-status-title" id="proctor-status-text">MONITORING ACTIVE</h4>
+                                <p class="session-warnings-description">Clipboard, context menu, focus, and key combinations are locked.</p>
+                            </div>
+                            <div class="ai-status-dot proctor-status-dot-right" id="proctor-status-dot"></div>
+                        </div>
+                    </div>
+
+                    <!-- Live Proctor logs -->
+                        <div class="glass-panel violations-container quiz-violations-panel">
+                        <div class="violation-metric">
+                            <span class="session-warnings-label">Session Warnings</span>
+                            <span class="violation-counter-pill" id="proctor-warning-counter">0 / 3</span>
+                        </div>
+                        <p class="session-warnings-description">Violating focus, shortcuts, or copy/paste increments warnings.</p>
+                        
+                        <div class="violations-list" id="proctor-live-log-list">
+                            <div id="empty-warnings-placeholder" class="muted-center small-text">Secure Browser Session Active.</div>
+                        </div>
+                    </div>
+                </aside>
+
+            </div>
+        </section>
+
+        <!-- SCREEN 4: INSTRUCTOR DASHBOARD -->
+        <section id="page-instructor" class="page">
+            <div class="glass-panel dashboard-hero dashboard-hero-row">
+                <div>
+                    <h2>Instructor Command Center</h2>
+                    <p>Manage examinations, inspect security events, and audit student logs.</p>
+                </div>
+                <button class="btn btn-primary" onclick="openCreateQuizModal()">
+                    ➕ Create New Quiz
+                </button>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="instructor-stats">
+                <div class="glass-panel stat-card">
+                    <div class="stat-label">Active Quizzes</div>
+                    <div class="stat-val" id="stat-active-quizzes">3</div>
+                </div>
+                <div class="glass-panel stat-card">
+                    <div class="stat-label">Submissions</div>
+                    <div class="stat-val" id="stat-submissions">0</div>
+                </div>
+                <div class="glass-panel stat-card">
+                    <div class="stat-label">Flagged Attempts</div>
+                    <div class="stat-val stat-danger" id="stat-flagged">0</div>
+                </div>
+                <div class="glass-panel stat-card">
+                    <div class="stat-label">Suspended Users</div>
+                    <div class="stat-val stat-danger" id="stat-suspended">0</div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid dashboard-stats-grid">
+                <div class="glass-panel reports-panel">
+                    <h3 class="reports-title">
+                        <span>📋</span> Assessment Reports & Audit Log
+                    </h3>
+                    
+                    <div class="table-wrapper">
+                        <table class="logs-table">
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Assessment</th>
+                                    <th>Score</th>
+                                    <th>Accuracy</th>
+                                    <th>Warnings</th>
+                                    <th>Compliance Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="instructor-reports-tbody">
+                                <!-- Dynamically populated table rows -->
+                                <tr>
+                                    <td colspan="7" class="empty-table-message">No student attempts logged yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SCREEN 5: FEEDBACK / POST EXAM CARD -->
+        <section id="page-feedback" class="page">
+            <div class="glass-panel feedback-card">
+                <div class="feedback-icon" id="feedback-success-icon">🏆</div>
+                <h2 id="feedback-title">Assessment Submitted</h2>
+                <p id="feedback-subtitle" class="feedback-subtitle">Your answers have been securely logged. The AI proctor check has finalized.</p>
+                
+                <div class="score-display" id="feedback-score-display">
+                    80%
+                </div>
+
+                <div class="metric-row">
+                    <div class="metric-box">
+                        <span class="metric-label">Warnings</span>
+                        <span class="metric-val" id="feedback-warnings">0</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-label">Status</span>
+                        <span class="metric-val" id="feedback-compliance-status">CLEAN</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-label">Duration</span>
+                        <span class="metric-val" id="feedback-duration">08:15</span>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="showPage('student')">
+                    Back to Dashboard
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FULLSCREEN COMPLIANCE WARNING OVERLAY -->
+    <div class="fullscreen-warning-overlay" id="compliance-warning-overlay">
+        <div class="warning-card compliance-warning-card">
+            <div class="warning-icon">⚠️</div>
+            <h2 id="warning-overlay-title">Compliance Alert</h2>
+            <p id="warning-overlay-desc">You have moved away from the exam terminal. The proctor system logged a violation. Please click below to re-enter fullscreen focus immediately.</p>
+            <button type="button" class="btn btn-danger" onclick="resumeComplianceSession()">
+                Return to Assessment
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL: DETAILED STUDENT AUDIT LOG -->
+    <div class="modal" id="modal-log-details">
+        <div class="glass-panel modal-content">
+            <div class="modal-header">
+                <h3>🔍 Detailed Audit & Proctor Log</h3>
+                <button class="close-btn" onclick="closeModal('modal-log-details')">&times;</button>
+            </div>
+            
+            <div class="audit-summary-box">
+                <p class="audit-summary-text">Student: <strong id="modal-audit-student" class="text-success">John Doe</strong></p>
+                <p class="audit-summary-text">Exam: <strong id="modal-audit-quiz">JavaScript Core Concepts</strong></p>
+                <p class="audit-status-text">Final Status: <strong id="modal-audit-status" class="text-success">Clean (0 warnings)</strong></p>
+            </div>
+
+            <h4>Activity Timeline</h4>
+            <div class="log-timeline" id="modal-audit-timeline-container">
+                <!-- Dynamically populated timelines -->
+            </div>
+
+            <div class="audit-timeline-close-wrap">
+                <button class="btn btn-secondary" onclick="closeModal('modal-log-details')">Close Log</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CREATE NEW QUIZ -->
+    <div class="modal" id="modal-create-quiz">
+        <div class="glass-panel modal-content">
+            <div class="modal-header">
+                <h3>➕ Create Custom Quiz</h3>
+                <button class="close-btn" onclick="closeModal('modal-create-quiz')">&times;</button>
+            </div>
+            
+            <form id="create-quiz-form" onsubmit="handleCreateQuizSubmit(event)">
+                <div class="form-group">
+                    <label for="new-quiz-title">Quiz Title</label>
+                    <input type="text" id="new-quiz-title" class="form-control" placeholder="e.g. Algorithms & Data Structures" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="new-quiz-duration">Duration (minutes)</label>
+                    <input type="number" id="new-quiz-duration" class="form-control" value="15" min="1" max="180" required>
+                </div>
+
+                <div class="create-quiz-form-spacing">
+                    <h4 class="questions-list-header">
+                        <span>Questions List</span>
+                        <button type="button" class="btn btn-secondary questions-add-btn" onclick="addQuestionToForm()">
+                            Add Question
+                        </button>
+                    </h4>
+                    
+                    <div id="questions-builder-container">
+                        <!-- Questions elements will be injected here -->
+                    </div>
+                </div>
+
+                <div class="questions-builder-spacing">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('modal-create-quiz')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Assessment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main JS Application Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
