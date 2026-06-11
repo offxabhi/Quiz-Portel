@@ -44,17 +44,10 @@ CSS → Styling & UI
 JavaScript → Logic & functionality
 LocalStorage → Data storage
 
-📂 Project Structure
-Quiz-Portel/
-│
-├── index.html
-├── styles.css
-├── app.js
-├── README.md
 
 ⚙️ How to Run
 Download or clone the repository:
-git clone https://github.com/your-username/quiz-portel.git
+git clone [https://github.com/offxabhi/Quiz-Portel]
 Open project folder
 Run:
 Open index.html in browser
